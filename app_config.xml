@@ -5,6 +5,6 @@
     <callable>app</callable>
     <socket>127.0.0.1:2469</socket>
     <master/>
-    <processes>1</processes>
+    <processes>2</processes>
     <memory-report/>
 </uwsgi>

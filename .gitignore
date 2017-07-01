@@ -1,1 +1,5 @@
 config.py
+*.pyc
+*.log
+app_config.xml
+

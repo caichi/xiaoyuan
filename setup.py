@@ -24,9 +24,9 @@ content_uwsgi_config = '''
 </uwsgi>
 '''
 
-
+# remove '--plugin python' in pip installation.
 uwsgi_command = '''
-sudo uwsgi -x %(path)s/app_config.xml --plugin python &
+sudo uwsgi -x %(path)s/app_config.xml &
 '''
 
 def create_config_file(python_path,
@@ -43,22 +43,21 @@ def create_config_file(python_path,
     f.close()
 
 def check_process(name):
-    s = os.system('ps -C %s' % name)
-	return int(s)
+    return int(os.system('ps -C %s' % name))
 
 def check_uwsgi():
-	if not check_process('uwsgi'):
+    if check_process('uwsgi'):
         print 'error: uwsgi is dead!'
         sys.exit(1)
 
 def check_nginx():
-	if not check_process('nginx'):
+    if check_process('nginx'):
         print 'error: nginx is dead!'
         sys.exit(1)
 
 def check_env():
     check_nginx()
-    check_uwsgi()
+    #check_uwsgi()
 
 def deploy(cur_dir):
     os.system(uwsgi_command % {'path':cur_dir })
@@ -69,7 +68,8 @@ if __name__ == '__main__':
         print 'usage: process_num [uwsgi_port]'
         sys.exit(1)
     proc_num = sys.argv[1]
-    if len(sys.argv) == 3:
+    uwsgi_port = 2469
+    if len(sys.argv) >= 3:
         uwsgi_port = sys.argv[2]
     cur_dir, cur_file = os.path.split(os.path.abspath(sys.argv[0]))
     check_env()

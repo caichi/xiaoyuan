@@ -1,7 +1,7 @@
 
 <uwsgi>
     <pythonpath>/root/xiaoyuan</pythonpath>
-    <module>xiaoyuan</module>
+    <module>main</module>
     <callable>app</callable>
     <socket>127.0.0.1:2469</socket>
     <master/>

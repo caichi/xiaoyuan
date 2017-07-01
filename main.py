@@ -9,7 +9,7 @@ import logging
 import logging.handlers
 import thread
 from flask import Flask, request, session, g, redirect, url_for, abort, \
-     render_template, flash, json
+     render_template, flash, json, make_response
 import MySQLdb
 import urlparse
 import base64
@@ -61,9 +61,10 @@ def ConnectDB():
 def create_user():
     app.logger.info('create user')
     try:
-        if not request.is_json():
+        # "content-type: application/json" is required.
+        if not request.is_json:
             return make_response('request data must be json-formatted.', 400)
-        
+
         d_map = None
         try:
             d_map = request.get_json(force = True)
@@ -77,8 +78,8 @@ def create_user():
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "insert into user(uid, info) values('%d', '%s')"
-            cur.execute(sql, (d_map['Uid'], json.dumps(d_map['Info'])))
+            sql = "insert into user(uid, info) values(%s, %s)"
+            cur.execute(sql, (int(d_map['Uid']), json.dumps(d_map['Info'])))
             db.commit()
         except (MySQLdb.Warning, MySQLdb.Error) as e:
             db.rollback()
@@ -98,8 +99,8 @@ def is_existed_user(uid):
     db = ConnectDB()
     try:
         cur = db.cursor()
-        sql = "select uid from user where uid = '%d'" 
-        cur.execute(sql, (uid))
+        sql = "select uid from user where uid = %s" 
+        cur.execute(sql, (int(uid)))
         data = cur.fetchone()
         if data:
             return True
@@ -114,12 +115,12 @@ def out_of_service(uid, paper_id):
     db = ConnectDB()
     try:
         cur = db.cursor()
-        sql = "select info from billing where uid = '%d'" 
-        cur.execute(sql, (uid))
+        sql = "select info from billing where uid = %s" 
+        cur.execute(sql, (int(uid)))
         billing_info = json.loads(cur.fetchone())
         
-        sql = "select create_time from test_paper where id = '%d'" 
-        cur.execute(sql, (paper_id))
+        sql = "select create_time from test_paper where id = %s" 
+        cur.execute(sql, (int(paper_id)))
         create_time = cur.fetchone()
         if billing_info['ExpireTime'] >= create_time:
             return False
@@ -153,12 +154,12 @@ def get_testpaper(paper_id):
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "select marker, count from test_paper where id = '%d'" 
-            cur.execute(sql, (paper_id))
+            sql = "select marker, count from test_paper where id = %s" 
+            cur.execute(sql, (int(paper_id)))
             (marker, count) = cur.fetchone()
             
-            sql = "select id, info from single_choice where id >= '%d' limit '%d'" 
-            cur.execute(sql, (marker, count))
+            sql = "select id, info from single_choice where id >= %s limit %s" 
+            cur.execute(sql, (int(marker), int(count)))
             rows = cur.fetchall()
             res = {'Choices':{}}
             for row in rows:
@@ -212,8 +213,8 @@ def is_existed_user_paper(uid, paper_id):
     db = ConnectDB()
     try:
         cur = db.cursor()
-        sql = "select uid, test_paper_id from user_paper where uid = '%d' and test_paper_id = '%d'" 
-        cur.execute(sql, (uid, paper_id))
+        sql = "select uid, test_paper_id from user_paper where uid = %s and test_paper_id = %s" 
+        cur.execute(sql, (int(uid), int(paper_id)))
         data = cur.fetchone()
         if data:
             return True
@@ -230,9 +231,6 @@ def create_user_paper(uid, paper_id):
     app.logger.info('create user')
     
     try:
-        if not request.is_json():
-            return make_response('request data must be json-formatted.', 400)
-        
         d_map = None
         try:
             d_map = request.get_json(force = True)
@@ -244,13 +242,13 @@ def create_user_paper(uid, paper_id):
             return make_response('request data must not be empty.', 400)
 
         if is_existed_user_paper(uid, paper_id):
-            return make_response('%d has been submitted.' % paper_id, 400)
+            return make_response('%s has been submitted.' % int(paper_id), 400)
         
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "insert into user_paper(uid, test_paper_id, info) values('%d', '%d', '%s')" 
-            cur.execute(sql, (uid, paper_id, json.dumps(d_map['Choices'])))
+            sql = "insert into user_paper(uid, test_paper_id, info) values(%s, %s, %s)" 
+            cur.execute(sql, (int(uid), int(paper_id), json.dumps(d_map['Choices'])))
         except Exception, e:
             app.logger.exception('create_user_paper: %s' % str(e))
             return make_response('internal error', 500)
@@ -270,8 +268,8 @@ def get_user_paper(uid, paper_id):
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "select info from user_paper where uid = '%d' and test_paper_id = '%d'" 
-            cur.execute(sql, (uid, paper_id))
+            sql = "select info from user_paper where uid = %s and test_paper_id = %s" 
+            cur.execute(sql, (int(uid), int(paper_id)))
             info = cur.fetchone()
             
             res = "{'Choices':%s}" % info
@@ -294,8 +292,8 @@ def list_user_paper():
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "select tp.id, tp.name from test_paper tp join user_paper up where tp.id = up.test_paper_id and up.uid = '%d'" 
-            cur.execute(sql, (uid))
+            sql = "select tp.id, tp.name from test_paper tp join user_paper up where tp.id = up.test_paper_id and up.uid = %s" 
+            cur.execute(sql, (int(uid)))
             rows = cur.fetchall()
             res = {'TestPapers':[]}
             for row in rows:
@@ -319,8 +317,8 @@ def get_user_quota():
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "select info from quota where uid = '%d'" 
-            cur.execute(sql, (uid))
+            sql = "select info from quota where uid = %s" 
+            cur.execute(sql, (int(uid)))
             info = cur.fetchone()
             return info
         except Exception, e:
@@ -338,7 +336,8 @@ def modify_user_bill(uid):
     app.logger.info('modify user bill')
     
     try:
-        if not request.is_json():
+        # "content-type: application/json" is required.
+        if not request.is_json:
             return make_response('request data must be json-formatted.', 400)
         
         d_map = None
@@ -354,8 +353,8 @@ def modify_user_bill(uid):
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "insert into billing(uid, info) values('%d', '%s') on duplicate key update info = '%s'"
-            cur.execute(sql, (uid, json.dumps(d_map['Bill']), json.dumps(d_map['Bill'])))
+            sql = "insert into billing(uid, info) values(%s, %s) on duplicate key update info = %s"
+            cur.execute(sql, (int(uid), json.dumps(d_map['Bill']), json.dumps(d_map['Bill'])))
         except Exception, e:
             app.logger.exception('modify_user_bill: %s' % str(e))
             return make_response('internal error', 500)

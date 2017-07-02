@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+from datetime import datetime
 import json
 import math
 import logging
@@ -78,8 +79,8 @@ def create_user():
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "insert into user(uid, info) values(%s, %s)"
-            cur.execute(sql, (int(d_map['Uid']), json.dumps(d_map['Info'])))
+            sql = "insert into user(uid, info) values(%s, %s) on duplicate key update info = %s, update_time = now()"
+            cur.execute(sql, (int(d_map['Uid']), json.dumps(d_map['Info']), json.dumps(d_map['Info'])))
             db.commit()
         except (MySQLdb.Warning, MySQLdb.Error) as e:
             db.rollback()
@@ -99,8 +100,8 @@ def is_existed_user(uid):
     db = ConnectDB()
     try:
         cur = db.cursor()
-        sql = "select uid from user where uid = %s" 
-        cur.execute(sql, (int(uid)))
+        sql = "select id from user where uid = %s" 
+        cur.execute(sql, (int(uid),))
         data = cur.fetchone()
         if data:
             return True
@@ -116,13 +117,14 @@ def out_of_service(uid, paper_id):
     try:
         cur = db.cursor()
         sql = "select info from billing where uid = %s" 
-        cur.execute(sql, (int(uid)))
-        billing_info = json.loads(cur.fetchone())
+        cur.execute(sql, (int(uid),))
+        billing_info = json.loads(cur.fetchone()[0])
+        expire_time = datetime.strptime(billing_info['ExpireTime'], '%Y-%m-%d %H:%M:%S')
         
         sql = "select create_time from test_paper where id = %s" 
-        cur.execute(sql, (int(paper_id)))
-        create_time = cur.fetchone()
-        if billing_info['ExpireTime'] >= create_time:
+        cur.execute(sql, (int(paper_id),))
+        create_time = cur.fetchone()[0]
+        if expire_time >= create_time:
             return False
         return True
     except Exception, e:
@@ -141,9 +143,6 @@ def get_testpaper(paper_id):
         if 'Uid' not in request.headers:
             return make_response('Uid should be included in request headers.', 400)
         
-        if not isinstance(request.headers['Uid'], int):
-            return make_response('Uid should be int type.', 400)
-
         if not is_existed_user(request.headers['Uid']):
             return make_response('%s is not valid user.' % request.headers['Uid'], 403)
         
@@ -155,7 +154,7 @@ def get_testpaper(paper_id):
         try:
             cur = db.cursor()
             sql = "select marker, count from test_paper where id = %s" 
-            cur.execute(sql, (int(paper_id)))
+            cur.execute(sql, (int(paper_id),))
             (marker, count) = cur.fetchone()
             
             sql = "select id, info from single_choice where id >= %s limit %s" 
@@ -184,9 +183,6 @@ def list_testpaper():
         if 'Uid' not in request.headers:
             return make_response('Uid should be included in request headers.', 400)
         
-        if not isinstance(request.headers['Uid'], int):
-            return make_response('Uid should be int type.', 400)
-
         if not is_existed_user(request.headers['Uid']):
             return make_response('%s is not valid user.' % request.headers['Uid'], 403)
         
@@ -293,7 +289,7 @@ def list_user_paper():
         try:
             cur = db.cursor()
             sql = "select tp.id, tp.name from test_paper tp join user_paper up where tp.id = up.test_paper_id and up.uid = %s" 
-            cur.execute(sql, (int(uid)))
+            cur.execute(sql, (int(uid),))
             rows = cur.fetchall()
             res = {'TestPapers':[]}
             for row in rows:
@@ -318,7 +314,7 @@ def get_user_quota():
         try:
             cur = db.cursor()
             sql = "select info from quota where uid = %s" 
-            cur.execute(sql, (int(uid)))
+            cur.execute(sql, (int(uid),))
             info = cur.fetchone()
             return info
         except Exception, e:

@@ -112,6 +112,22 @@ def is_existed_user(uid):
     finally:
         db.close()
 
+def is_existed_testpaper(paper_id):
+    db = ConnectDB()
+    try:
+        cur = db.cursor()
+        sql = "select id from test_paper where id = %s" 
+        cur.execute(sql, (int(paper_id),))
+        data = cur.fetchone()
+        if data:
+            return True
+        return False
+    except Exception, e:
+        app.logger.exception('is_existed_testpaper: %s' % str(e))
+        raise
+    finally:
+        db.close()
+
 def out_of_service(uid, paper_id):
     db = ConnectDB()
     try:
@@ -179,22 +195,15 @@ def list_testpaper():
     app.logger.info('list testpaper')
     
     try:
-        # check user credentials
-        if 'Uid' not in request.headers:
-            return make_response('Uid should be included in request headers.', 400)
-        
-        if not is_existed_user(request.headers['Uid']):
-            return make_response('%s is not valid user.' % request.headers['Uid'], 403)
-        
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "select id, name from test_paper" 
+            sql = "select id, name, marker, count, info from test_paper" 
             cur.execute(sql)
             rows = cur.fetchall()
             res = {'TestPapers':[]}
             for row in rows:
-                res['TestPapers'].append({'Id':row[0],'Name':row[1]})
+                res['TestPapers'].append({'Id':row[0],'Name':row[1],'Marker':row[2],'Count':row[3],'Info':row[4]})
             return json.dumps(res)
         except Exception, e:
             app.logger.exception('list_testpaper: %s' % str(e))
@@ -224,9 +233,23 @@ def is_existed_user_paper(uid, paper_id):
 # create_user_paper
 @app.route('/users/<uid>/testpapers/<paper_id>', methods = ['POST'])
 def create_user_paper(uid, paper_id):
-    app.logger.info('create user')
+    app.logger.info('create user paper')
     
     try:
+        # "content-type: application/json" is required.
+        if not request.is_json:
+            return make_response('request data must be json-formatted.', 400)
+
+        # check user credentials
+        if not is_existed_user(uid):
+            return make_response('%s is not valid user.' % uid, 403)
+        
+        if not is_existed_testpaper(paper_id):
+            return make_response('%s is not valid testpaper.' % paper_id, 403)
+
+        if is_existed_user_paper(uid, paper_id):
+            return make_response('%s has been submitted.' % int(paper_id), 400)
+        
         d_map = None
         try:
             d_map = request.get_json(force = True)
@@ -237,14 +260,12 @@ def create_user_paper(uid, paper_id):
         if 'Choices' not in d_map or 0 == len(d_map['Choices']):
             return make_response('request data must not be empty.', 400)
 
-        if is_existed_user_paper(uid, paper_id):
-            return make_response('%s has been submitted.' % int(paper_id), 400)
-        
         db = ConnectDB()
         try:
             cur = db.cursor()
             sql = "insert into user_paper(uid, test_paper_id, info) values(%s, %s, %s)" 
             cur.execute(sql, (int(uid), int(paper_id), json.dumps(d_map['Choices'])))
+            db.commit()
         except Exception, e:
             app.logger.exception('create_user_paper: %s' % str(e))
             return make_response('internal error', 500)
@@ -256,11 +277,15 @@ def create_user_paper(uid, paper_id):
     return make_response('internal error', 500)
 
 # get_user_paper 
-@app.route('/users/uid/testpapers/<paper_id>', methods = ['GET'])
+@app.route('/users/<uid>/testpapers/<paper_id>', methods = ['GET'])
 def get_user_paper(uid, paper_id):
     app.logger.info('get user paper')
     
     try:
+        # check user credentials
+        if not is_existed_user(uid):
+            return make_response('%s is not valid user.' % uid, 403)
+
         db = ConnectDB()
         try:
             cur = db.cursor()
@@ -268,8 +293,7 @@ def get_user_paper(uid, paper_id):
             cur.execute(sql, (int(uid), int(paper_id)))
             info = cur.fetchone()
             
-            res = "{'Choices':%s}" % info
-            return res 
+            return '{"Choices":%s}' % info
         except Exception, e:
             app.logger.exception('get_user_paper: %s' % str(e))
             return make_response('internal error', 500)
@@ -281,10 +305,14 @@ def get_user_paper(uid, paper_id):
 
 # list_user_paper 
 @app.route('/users/<uid>/testpapers', methods = ['GET'])
-def list_user_paper():
+def list_user_paper(uid):
     app.logger.info('list user paper')
     
     try:
+        # check user credentials
+        if not is_existed_user(uid):
+            return make_response('%s is not valid user.' % uid, 403)
+        
         db = ConnectDB()
         try:
             cur = db.cursor()
@@ -306,10 +334,14 @@ def list_user_paper():
 
 # get_user_quota 
 @app.route('/users/<uid>/quota', methods = ['GET'])
-def get_user_quota():
+def get_user_quota(uid):
     app.logger.info('get user quota')
     
     try:
+        # check user credentials
+        if not is_existed_user(uid):
+            return make_response('%s is not valid user.' % uid, 403)
+        
         db = ConnectDB()
         try:
             cur = db.cursor()
@@ -351,12 +383,13 @@ def modify_user_bill(uid):
             cur = db.cursor()
             sql = "insert into billing(uid, info) values(%s, %s) on duplicate key update info = %s"
             cur.execute(sql, (int(uid), json.dumps(d_map['Bill']), json.dumps(d_map['Bill'])))
+            db.commit()
         except Exception, e:
             app.logger.exception('modify_user_bill: %s' % str(e))
             return make_response('internal error', 500)
         finally:
             db.close()
-        return make_response('', 200)
+        return make_response('', 201)
     except Exception, e:
         app.logger.exception('modify_user_bill: %s' % str(e))
     return make_response('internal error', 500)

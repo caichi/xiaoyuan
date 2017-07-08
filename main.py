@@ -57,6 +57,19 @@ def Prepare():
 def ConnectDB():
     return MySQLdb.connect(config.DB_HOST, config.DB_USER, config.DB_PASSWD, config.DB_NAME, config.DB_PORT)
 
+def get_user_id_by_name(nick_name):
+    db = ConnectDB()
+    try:
+        cur = db.cursor()
+        sql = "select uid from user where nick_name = %s" 
+        cur.execute(sql, (nick_name,))
+        return str(cur.fetchone()[0])
+    except Exception, e:
+        app.logger.exception('get_user_id_by_name: %s' % str(e))
+        raise
+    finally:
+        db.close()
+
 # create_user
 @app.route('/users', methods = ['POST'])
 def create_user():
@@ -75,12 +88,18 @@ def create_user():
         
         if 0 == len(d_map):
             return make_response('request data must not be empty.', 400)
+           
+        if 'NickName' not in d_map or 0 == len(d_map['NickName']):
+            return make_response('nick name must be included in request data.', 400)
         
+        nick_name = d_map['NickName']
+        del d_map['NickName']
+
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "insert into user(uid, info) values(%s, %s) on duplicate key update info = %s, update_time = now()"
-            cur.execute(sql, (int(d_map['Uid']), json.dumps(d_map['Info']), json.dumps(d_map['Info'])))
+            sql = "insert into user(nick_name, info) values(%s, %s) on duplicate key update info = %s, update_time = now()"
+            cur.execute(sql, (nick_name, json.dumps(d_map['Info']), json.dumps(d_map['Info'])))
             db.commit()
         except (MySQLdb.Warning, MySQLdb.Error) as e:
             db.rollback()
@@ -91,7 +110,7 @@ def create_user():
             return make_response('internal error', 500)
         finally:
             db.close()
-        return make_response('', 201)
+        return make_response(get_user_id_by_name(nick_name), 201)
     except Exception, e:
         app.logger.exception('create user fail: %s' % str(e))
     return make_response('internal error', 500)
@@ -100,7 +119,7 @@ def is_existed_user(uid):
     db = ConnectDB()
     try:
         cur = db.cursor()
-        sql = "select id from user where uid = %s" 
+        sql = "select uid from user where uid = %s" 
         cur.execute(sql, (int(uid),))
         data = cur.fetchone()
         if data:

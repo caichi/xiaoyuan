@@ -55,7 +55,15 @@ def Prepare():
     pass
 
 def ConnectDB():
-    return MySQLdb.connect(config.DB_HOST, config.DB_USER, config.DB_PASSWD, config.DB_NAME, config.DB_PORT)
+    return MySQLdb.connect(
+			config.DB_HOST,
+			config.DB_USER,
+			config.DB_PASSWD,
+			config.DB_NAME,
+			config.DB_PORT,
+			connect_timeout = 10,
+			use_unicode = True,
+			charset = 'utf8')
 
 def get_user_id_by_name(nick_name):
     db = ConnectDB()

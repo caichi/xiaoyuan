@@ -225,12 +225,12 @@ def list_testpaper():
         db = ConnectDB()
         try:
             cur = db.cursor()
-            sql = "select id, name, marker, count, info from test_paper" 
+            sql = "select id, name from test_paper" 
             cur.execute(sql)
             rows = cur.fetchall()
-            res = {'TestPapers':[]}
+            res = {'TestPapers':{}}
             for row in rows:
-                res['TestPapers'].append({'Id':row[0],'Name':row[1],'Marker':row[2],'Count':row[3],'Info':row[4]})
+			res['TestPapers'][row[0]] = row[1]
             return json.dumps(res)
         except Exception, e:
             app.logger.exception('list_testpaper: %s' % str(e))
@@ -346,9 +346,9 @@ def list_user_paper(uid):
             sql = "select tp.id, tp.name from test_paper tp join user_paper up where tp.id = up.test_paper_id and up.uid = %s" 
             cur.execute(sql, (int(uid),))
             rows = cur.fetchall()
-            res = {'TestPapers':[]}
+            res = {'TestPapers':{}}
             for row in rows:
-                res['TestPapers'].append({row[0]:row[1]})
+                res['TestPapers'][row[0]] = row[1]
             return json.dumps(res)
         except Exception, e:
             app.logger.exception('list_user_paper: %s' % str(e))
